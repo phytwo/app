@@ -1,58 +1,85 @@
-AWSTemplateFormatVersion : '2010-09-09'
+AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Python Lambda Monorepo - Example
+
+Globals:
+  Api:
+    # Enable Logs
+    MethodSettings:
+      - ResourcePath: "/*"
+        HttpMethod: "*"
+        DataTraceEnabled: True
+        LoggingLevel: INFO
+        MetricsEnabled: True
+
 Resources:
-  createdinosaur:
-    FunctionName: create_dinosaur
-    Description: Create Dinosaur Lambda
-    Type: AWS::Serverless::Function
+  Quando:
+    Type: 'AWS::Serverless::Function'
     Properties:
-      Runtime: python3.7
+      CodeUri: ./src/quando
       Handler: main.handler
-      CodeUri: services/create_dinosaur
-      Timeout: 20
-      Environment:
-        Variables:
-          PYTHONPATH: ./packages
-      Events:
-        Api:
-          Type: Api
-          Properties:
-            Path: /create_dinosaur
-            Method: any
-  createhybriddinosaur:
-    FunctionName: create_hybrid_dinosaur
-    Description: Create Bybrid Dinosaur Lambda
-    Type: AWS::Serverless::Function
+      Runtime: python3.8
+
+  ApiGW:
+    Type: 'AWS::Serverless::Api'
     Properties:
-      Runtime: python3.7
-      Handler: main.handler
-      CodeUri: services/create_hybrid_dinosaur
-      Timeout: 20
-      Environment:
-        Variables:
-          PYTHONPATH: ./packages
-      Events:
-        Api:
-          Type: Api
-          Properties:
-            Path: /create_hybrid_dinosaur
-            Method: any
-  fightdinosaurs:
-    FunctionName: fight_dinosaurs
-    Description: List Discovered Dinosaurs Lambda
-    Type: AWS::Serverless::Function
-    Properties:
-      Runtime: python3.7
-      Handler: main.handler
-      CodeUri: services/fight_dinosaurs
-      Timeout: 20
-      Environment:
-        Variables:
-          PYTHONPATH: ./packages
-      Events:
-        Api:
-          Type: Api
-          Properties:
-            Path: /fight_dinosaurs
-            Method: any
+      StageName: prod
+      Auth:
+        DefaultAuthorizer:
+          AuthorizationType: "NONE"
+      OpenApiVersion: 3.0.3
+      DefinitionBody: # an OpenApi definition
+          "Fn::Transform":
+              Name: "AWS::Include"
+              Parameters:
+                  Location: "openapi.yml"
+      EndpointConfiguration:
+          Type: REGIONAL
+    DependsOn:
+      - Quando
+      - ApiCWLRoleArn
+
+  ApiCWLRoleArn:
+      Type: AWS::ApiGateway::Account
+      Properties: 
+        CloudWatchRoleArn: !GetAtt CloudWatchRole.Arn
+
+  CloudWatchRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            Action: 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+        Path: /
+        ManagedPolicyArns:
+          - 'arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs'
+
+  # Execution Role
+  LambdaExecutionRole:
+      Type: AWS::IAM::Role
+      Properties:
+          AssumeRolePolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Principal:
+                    Service:
+                      - apigateway.amazonaws.com
+                  Action:
+                    - 'sts:AssumeRole'
+          Policies:
+              - PolicyName: AllowLambdaExec
+                PolicyDocument:
+                  Version: "2012-10-17"
+                  Statement:
+                    - Effect: Allow
+                      Action: 'lambda:InvokeFunction'
+                      Resource: !GetAtt Quando.Arn
+
+Outputs:
+  QuandoEP:
+    Description: URL of the Quando API endpoint
+    Value: !Sub "https://${ApiGW}.execute-api.${AWS::Region}.amazonaws.com/prod/quando"
