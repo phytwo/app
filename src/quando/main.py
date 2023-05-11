@@ -31,12 +31,14 @@ def handler(event, context):
             }
             logger.info(f"Successfully returned response: {response}")
         else:
+            # Return missing country code message
             response = {
                 'statusCode': 400,
                 'body': json.dumps({'message': 'Missing country_code parameter in query string'})
             }
             logger.error(f"Failed to retrieve country_code parameter from query string: {json.dumps(event)}")
     except Exception as e:
+        # Something unexpected has happened
         response = {
             'statusCode': 500,
             'body': json.dumps({'message': f'Error: {str(e)}'})
