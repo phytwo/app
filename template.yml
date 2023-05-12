@@ -12,6 +12,8 @@ Globals:
         MetricsEnabled: True
 
 Resources:
+  # Quando 
+  ## Lambda Function
   Quando:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -19,45 +21,7 @@ Resources:
       Handler: main.handler
       Runtime: python3.8
 
-  ApiGW:
-    Type: 'AWS::Serverless::Api'
-    Properties:
-      StageName: prod
-      Auth:
-        DefaultAuthorizer:
-          AuthorizationType: "NONE"
-      OpenApiVersion: 3.0.3
-      DefinitionBody: # an OpenApi definition
-          "Fn::Transform":
-              Name: "AWS::Include"
-              Parameters:
-                  Location: "openapi.yml"
-      EndpointConfiguration:
-          Type: REGIONAL
-    DependsOn:
-      - Quando
-      - ApiCWLRoleArn
-
-  ApiCWLRoleArn:
-      Type: AWS::ApiGateway::Account
-      Properties: 
-        CloudWatchRoleArn: !GetAtt CloudWatchRole.Arn
-
-  CloudWatchRole:
-      Type: AWS::IAM::Role
-      Properties:
-        AssumeRolePolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-            Action: 'sts:AssumeRole'
-            Effect: Allow
-            Principal:
-              Service: apigateway.amazonaws.com
-        Path: /
-        ManagedPolicyArns:
-          - 'arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs'
-
-  # Execution Role
+  ## Execution Role
   LambdaExecutionRole:
       Type: AWS::IAM::Role
       Properties:
@@ -78,6 +42,47 @@ Resources:
                     - Effect: Allow
                       Action: 'lambda:InvokeFunction'
                       Resource: !GetAtt Quando.Arn
+
+  # API Gateway
+  ## Gateway
+  ApiGW:
+    Type: 'AWS::Serverless::Api'
+    Properties:
+      StageName: prod
+      Auth:
+        DefaultAuthorizer:
+          AuthorizationType: "NONE"
+      DefinitionBody: # an OpenApi definition
+          "Fn::Transform":
+              Name: "AWS::Include"
+              Parameters:
+                  Location: "openapi.yml"
+      EndpointConfiguration:
+          Type: REGIONAL
+    DependsOn:
+      - Quando
+      - ApiCWLRoleArn
+
+  ## Cloudwatch Role Attachment
+  ApiCWLRoleArn:
+      Type: AWS::ApiGateway::Account
+      Properties: 
+        CloudWatchRoleArn: !GetAtt CloudWatchRole.Arn
+
+  ## Cloudwatch Role
+  CloudWatchRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            Action: 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+        Path: /
+        ManagedPolicyArns:
+          - 'arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs'
 
 Outputs:
   QuandoEP:
